@@ -21,3 +21,5 @@ PROCEDURE:
 -use fitting script to generate LJ parameters for m-body molecule
 
 updated 3/24/2019 by spencer smith
+----
+Forked version, Brian Day
