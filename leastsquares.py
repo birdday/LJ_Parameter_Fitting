@@ -1,167 +1,141 @@
-from numpy import linspace, power, random, inf, asarray, absolute, shape
-from pandas import read_csv; from math import sqrt
-from ase import Atoms; from os import chdir; from tqdm import tqdm
-from sympy import symbols, diff, factor, Matrix, zeros; from numpy.linalg import inv
+# --------------------------------------------------
+# ----- Import Python Packages ---------------------
+# --------------------------------------------------
+import numpy as np
 import matplotlib.pyplot as plt
 
-#calculated / look-up values
-sotolon_vac = -86.96520401259681; graphene_vac = -305.49689755541885
+from pandas import read_csv
+from math import sqrt
+from ase import Atoms
+
+# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
+# ----- Function Parameters ------------------------
+# --------------------------------------------------
+# Molecule Representation
+bodies = 1;
+# Initial guess
+params = [(1e-5, 5.3)]
+
+# --------------------------------------------------
+# ----- Experimental / Literature Values -----------
+# --------------------------------------------------
+graphene_vac = -305.49689755541885; graphene_pervac = -7.39805875741705;
+sotolon_vac = -86.96520401259681; sotolon_pervac = -86.96759558341823;
 carbon_sig = 3.55; carbon_eps = 0.066 / 627.509 #kcal/mol -> Hartree
-sotolon_pervac = -86.96759558341823; graphene_pervac = -7.39805875741705
+surface_sig = carbon_sig; surface_eps = carbon_eps;
 
-#get the distance between two atom positions
-def distance_between_coords(p1, p2):
-    return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
-
-#for each configuration of the molecule, calculate total E then find residual
-def get_obj_funcs(dir_list, v, b, f):
-
-    #define initial residual to be added for each .xyz file
-    residual = []; surf_E = 0; energ = []
-
-    for j, dir in enumerate(tqdm(dir_list, leave=False)):
-
-        #move into particular folder
-        chdir(dir)
-
-        #get & separate coordinates
-        df = read_csv(dir + '.xyz', header=2, names=['type', 'x', 'y', 'z'], sep='\s+')
-        coords = df[['x', 'y', 'z']]; types = df['type']
-        surf_z = coords['z'].iloc[0]; n = len(coords['z'])
-
-        #separates molecule and surface by checking z coordinate
-        for i in range(n):
-            if df['z'].iloc[i] != surf_z:
-                surf_coords = coords.iloc[:i,:]; mol_coords = coords.iloc[i:,:]
-                surf_types = types.iloc[:i]; mol_types = types.iloc[i:]; break
-
-        #create Atoms objects for surface and molecule
-        surf = Atoms(positions=surf_coords.values, symbols=surf_types.values)
-        mol = Atoms(positions=mol_coords.values, symbols=mol_types.values)
-
-        #only need to calculate surface energy once, b/c identical from trial-to-trial
-        if j == 0:
-            surf_E = get_surface_energy(f, surf.positions)
-
-        #calculate energy for each config.
-        energ.append(get_energy(f, [mol.get_center_of_mass()], surf.positions) + surf_E)
-        rp1 = (1/2)*(v[j] - energ[j])**2
-        residual.append(rp1); #print(rp1)
-
-        #go into bulk directory
-        chdir('..')
-
-    return residual
-
-#calculate the vacuum energy of the surface with given LJ params -- only do this once!
-def get_surface_energy(f, surf_list):
-    E = 0
-    for i, p1 in enumerate(surf_list):
-
-        #calculate p1's interactions with p2 thru pn, then increment p1 to p2
-        for j, p2 in enumerate(surf_list[(i+1):]):
-            dist = distance_between_coords(p1, p2)
-
-            if dist > 6: #cut-off
-                continue;
-
-            #calculate surface energy if less than cut-off
-            e = f.subs([(r, dist), (sig, carbon_sig), (eps, carbon_eps)])
-
-            E = E + e
-    return E
-
-#calculate all atom-atom energies outside of the cutoff. self-interaction in molecule is excluded
-def get_energy(f, mol_list, surf_list):
-    E = 0
-    for i, p1 in enumerate(mol_list):
-
-        #calculate p1's interactions with p2 thru pn, then increment p1 to p2, dealing with p3 thru pn
-        for j, p2 in enumerate(surf_list):
-            dist = distance_between_coords(p1, p2)
-
-            if dist > 6: #cut-off
-                continue;
-
-            #calculate the energy if less than cut-off
-            E = E + f.subs(r, dist)
-
-    return E
-
-#load files
-files = open('filenames.txt'); dirs = [line.strip('\n') for line in files.readlines()]
+# --------------------------------------------------
+# ----- 'Experimental' (DFT) Data ------------------
+# --------------------------------------------------
+# 'Experimental' Data
+files = open('filenames.txt')
+dirs = [line.strip('\n') for line in files.readlines()]
 files.close()
 
-#declare symbols (variables ... x0 epsilon, x1 sigma), max attempts
-max_attempts = 300
-eps, sig, r = symbols("eps sig r")
-
-#declare function of variables and radius
-f = -4 * eps * ((sig/r)**12 - (sig/r)**6); b = 1
-
-#read energies and radii
+# Read energies and radii
 energy_file = open('energies.txt'); v = []; rad = []; lines = energy_file.readlines()
 r_list = [float(l.strip('\n').split('\t')[1]) for l in lines]
 e_list = [(float(l.strip('\n').split('\t')[2]) - sotolon_vac - graphene_vac) / 27.2114 for l in lines]
+energy_file.close();
 
-#filter out non-LJ regions
-energy_file.close(); e_min = min(e_list); directories = []; print(e_min)
+# Filter out high-energy (non-LJ) data points
+e_min = min(e_list); directories = []; print(e_min)
 for i, vv in enumerate(e_list):
     if vv < -0.007:
-
-        #remove high E systems from consideration
         v.append(vv); directories.append(dirs[i]); rad.append(r_list[i])
 
-#plot potential curve
-plt.plot(rad, v, 'go'); plt.show()
+# Plot potential energy vs. distance
+# N.B. Treats molecule of interest as a single body
+# plt.plot(rad, v, 'go'); plt.show()
+# ----------------------------------------------------------------------------------------------------
 
-#size of Jacobian matrix -- m is # objective functions, n is # params
-m = len(v); n = 2
+# --------------------------------------------------
+# ----- User-defined Functions ---------------------
+# --------------------------------------------------
 
-#find objective function to be minimized -- this is extremely time limiting
-obj = Matrix(1, m, factor(get_obj_funcs(directories, v, b, f))).T
-print(obj)
-#fill in Jacobian matrix
-J = Matrix(m, n, [factor(diff(o, s)) for o in obj for s in [eps, sig]]); Jt = J.T
+# Get the distance between two objects
+def distance_between_coords(p1, p2):
+    dist = sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
+    return dist
 
-#define initial guesses for (epsilon, sotolon) parameter pair -- stored as tuple
-params = [(1e-5, 5.3)]
+# Get the coordinates for the moleucle and surface
+def get_coordinates(dir_lists, v, b, f):
+    # Create DataFrame of coordinates for each configuration
+    for j, dir in enumerate(tqdm(dir_list, leave=False)):
+        df = read_csv(dir + '.xyz', header=2, names=['type', 'x', 'y', 'z'], sep='\s+')
+        all_xyz = df[['x', 'y', 'z']]
+        all_types = df['type']
+        surf_z = coords['z'].iloc[0]; n = len(coords['z'])
 
-#calculate moore-penrose pseudo-inverse
-a = Jt * J
+    # Separate molecule and surface by checking z coordinate
+    for i in range(n):
+        if df['z'].iloc[i] != surf_z:
+            molecule_xyz = coords.iloc[i:,:]
+            molecule_types = types.iloc[i:]
+            surface_xyz = coords.iloc[:i,:]
+            surface_types = types.iloc[:i]
 
-for k in range(max_attempts):
+    return all_xyz, all_types, molecule_xyz, molecule_types, surface_xyz, surface_types
 
-    #extract parameters
-    print('beginning of loop'); x = params[k]
+def create_ase_atoms(mol_coords, mol_types, surf_coords, surf_types):
+    mol_atoms = Atoms(positions=mol_coords.values, symbols=mol_types.values)
+    surf_atoms = Atoms(positions=surf_coords.values, symbols=surf_types.values)
+    return mol_atoms, surf_atoms
 
-    #make substitutions into symbolic matrix, calculate inverse of Jt * J
-    ap = a.subs([(eps, x[0]), (sig, x[1])]);
-    print(ap); a_inv = ap**-1
+# Calculate the 'internal' energy of the surface
+def get_surface_energy(f, surf_list):
+    E_surf = 0
+    for i, p1 in enumerate(surf_list):
+        for j, p2 in enumerate(surf_list[(i+1):]):
+            dist = distance_between_coords(p1, p2)
+            if dist > cutoff:
+                continue;
+            e = f.subs([(r, dist), (sig, surface_sig), (eps, surface_eps)])
+            E_surf = E_surf + e
+    return E_surf
 
-    #calculate Moore-Penrose pseudoinverse, make substitutions, calcualte delta
-    Jtp, obj_sub = [ma.subs([(eps, x[0]), (sig, x[1])]) for ma in [Jt, obj]]
-    MPPI = a_inv * Jtp; delta = MPPI * obj_sub
+# Calculate the 'internal' energy of the molecule
+def get_molecule_energy(f, mol_list, surf_list):
+    return E_molecule
 
-    #need to do some sort of line search here to find the amount to go this direction
-    #implement levenberg-marquardt addition
-    c = .3
+# Calculate the energy between the molecule bodies and surface atoms
+def get__mixed_energy(f, mol_list, surf_list):
+    E_mixed = 0
+    for i, p1 in enumerate(mol_list):
+        for j, p2 in enumerate(surf_list):
+            dist = distance_between_coords(p1, p2)
+            if dist > cutoff:
+                continue;
+            e = f.subs(r, dist)
+            E_mixed = E_mixed + e
+    return E_mixed
 
-    #increment & append
-    new_params = (x[0] - delta[0]*c, x[1] - delta[1]*c); params.append(new_params)
-    print('we made it'); print(params)
+# --------------------------------------------------
+# ----- Parameter Fitting --------------------------
+# --------------------------------------------------
+# Currently (11 April 2019, Brian Day) using a quasi-Newton method to optimize
+# the multidimensional problem presented here.
+# Other options include: (1) conjugate-gradient method, (2) ???
+num_params = 2*bodies
+A =[]; B =[];
 
-    newobj_sub = obj.subs([(eps, new_params[0]), (sig, new_params[1])])
-    print('new residual calcualted')
+# Calculate the first derivates of the MSE with respect to each variable
+# Using the simplified form of the 12-6 Lennard-Jones equation, this yields:
+for i in range(num_datapoints):
+    for j in range(num_bodies):
+        dMSE_Aij = ( A[] / (r[ij]**18) ) + ( B[] / r[ij] ** 12)
+        dMSE_Bij = ( A[] / (r[ij]**18) ) + ( B[] / r[ij] ** 12)
+        dMSE_Aij_total += dMSE_Aij
+        dMSE_Bij_total += dMSE_Bij
+    dMSE_Ai = E_DFT[i] + dMSE_Aij_total
+    dMSE_Bi = E_DFT[i] + dMSE_Bij_total
+dMSE_A_total = E_DFT[i] - dMSE_Ai
+dMSE_B_total = E_DFT[i] - dMSE_Bi
 
-    #check for parameter convergence
-    conv_criteria = obj_sub - newobj_sub; conv_criteria = [conv_criteria[i] / r2 for i, r2 in enumerate(obj_sub)]
-    print(conv_criteria)
-
-    #is this best way to track convergence? this is m-dimensional (# files)
-    if sum(absolute(conv_criteria)) < 0.0001:  #convergence achieved
-        print('epsilon: ' + str(new_params[0]) + '\tsigma: ' + str(new_params[1]))
-        break
-    print('end of loop')
-
-# use mixing rules to extract sotolon sigma and epsilon at the end
+# --------------------------------------------------
+# ----- Extract Solution ---------------------------
+# --------------------------------------------------
+# Use mixing rules to extract body specific sigma and epsilon after parameter
+# fitting. Multiple mixing rules exist which can vary the parameters calculated.
+# Note that the mixing rules do NOT impact the fitted parameters.
