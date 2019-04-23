@@ -1,150 +1,138 @@
-#written by spencer smith for wilmerlab nov 2018 - jan 2019
+# Orinally written by Spencer Smith
+# Modifications by Brian Day
+# Last updated: 19 April 2019
 
-#imports
-from ase import Atoms; from ase.io import read, write
-import numpy as np; from math import cos, sin, pow
-from os import mkdir, chdir; from random import uniform
+# --------------------------------------------------
+# ----- Import Python Packages ---------------------
+# --------------------------------------------------
+import ase as ase
+from ase import io, spacegroup, build, visualize
+import numpy as np
+import math as math
+from math import cos, sin, pow
+from os import mkdir, chdir
+from random import uniform
 from shutil import copy
 
-#file input
-print('enter your molecule .xyz file'); f1 = input()
-print('enter your surface .cif file'); f2 = input()
+# --------------------------------------------------
+# ----- Manual inputs ------------------------------
+# --------------------------------------------------
+# Read in molecule xyz file and surface cif file
+mol_file = 'molecules/sotolon.xyz'
+mol_orig = ase.io.read(mol_file)
+mol_name = mol_file.split('/')[1].split('.')[0]
 
-#surface displacement for molecule c.o.m.
-mol = read(f1); print('enter desired buffer size'); buffer = 7
-dists = mol.positions.max(0) - mol.positions.min(0)
+surf_file ='surfaces/graphite.cif'
+surf_cell = ase.io.read(surf_file)
+surf_name = surf_file.split('/')[1].split('.')[0]
+xyz_file_dir = mol_name+'_'+surf_name
+xyz_file_dir_images = mol_name+'_'+surf_name+'_images'
 
-#create systemname
-dir_name = f1.split('.')[0] + '_' + f2.split('.')[0]
+surf_cell_spacegroup = 'P 1'
+buffer = 8
+N_configs = 50
+zrange = [1,8]
 
-#get cif file info
-surf = read(f2); omega = surf.get_volume()
-[a, b, c, alpha, beta, gamma] = surf.get_cell_lengths_and_angles()
-fractional = surf.get_scaled_positions()
+# --------------------------------------------------
+# ----- User defined functions ---------------------
+# --------------------------------------------------
+# Calculate the center of positions (non-weighted center of mass)
+def get_center_of_positions(self, scaled=False):
+    num_atoms = len(self)
+    all_xyz = self.get_positions()
+    avg_xyz = np.sum(all_xyz, axis=0)/num_atoms
+    return avg_xyz
 
-#convert from degrees to radians
-alpha = np.deg2rad(alpha); beta = np.deg2rad(beta); gamma = np.deg2rad(gamma)
+# Calculate the remiander
+def mod(a,b):
+    remainder = a%b
+    return remainder
 
-#this is the desired box size in x,y,z directions
-box = dists + 2 * buffer + mol.get_center_of_mass()
+# --------------------------------------------------
+# ----- Prepare surface slab -----------------------
+# --------------------------------------------------
+# Get surface crystal properties
+surf_cell_params = surf_cell.get_cell_lengths_and_angles()
+surf_cell_params = np.round(1E8*np.array(surf_cell_params))*1E-8
+[a, b, c, alpha, beta, gamma] = surf_cell_params
+[alpha, beta, gamma] = np.deg2rad([alpha, beta, gamma])
+surf_cell_vects = np.array([a,b,c])
+surf_cell_angles = np.array([alpha, beta, gamma])
+surf_cell_atomtypes = surf_cell.get_chemical_symbols()
+surf_cell_frac_coords = surf_cell.get_scaled_positions()
 
-#create mapping matrix -- convert fractional into cartesian unit cell
-M = np.array([[a, b*cos(gamma), c*cos(beta)],
-        [0, b*sin(gamma), c*(cos(alpha)-cos(beta)*cos(gamma))/sin(gamma)],
-        [0, 0, omega/(a*b*sin(gamma))]])
+# Define python ase equivalent of cif file
+surf_crystal = ase.spacegroup.crystal(
+surf_cell_atomtypes, surf_cell_frac_coords,
+spacegroup=surf_cell_spacegroup, cellpar=surf_cell_params)
 
-#generate cartesian coordinates for unit cell
-unit_coords = []; unit_types = []
-for l in fractional:
-    l.reshape(3,1); unit_coords.append(np.dot(M, l)); unit_types.append('C')
+# Define an orthoganalization matrix - Is this general for use with cut?
+cy = (cos(alpha)-cos(gamma)*cos(beta))/sin(gamma)
+M_orth = np.array([[1,0,0],[-cos(gamma),1,0],[cos(beta),cy,1]])
 
-#start at molecular center of mass so they're in line
-[x0, y0, z0] = unit_coords[0]; [x, y, z] = [x0, y0, z0]; i = 0
-coords = []; types = []; vec = [unit_coords[1][0] - x, unit_coords[1][1] - y];
+# Calculate box distance for a given molecule size / buffer
+# Currently a rough approximate of the size of the molecule, fix later
+dists = np.max(mol_orig.positions.max(0) - mol_orig.positions.min(0))
+box_size = dists + 2*buffer;
 
-#each loop run completes a column of linked unit cells
-while(y >= (y0 - box[1])):
-    while (x <= (x0 + box[1]) and x >= x0):
+# Calculate number of unit cells
+# Must be even number so file is periodic
+num_cells = np.ceil(box_size/surf_cell_vects)
+num_cells
+for i in range(len(num_cells)):
+    if mod(num_cells[i],2) == 1:
+        num_cells[i] = num_cells[i]+1
 
-        #draw the items in the unit cell (this could be turned into a loop)
-        coords.append([x, y, z]); types.append(unit_types[0])
-        [x, y] = map(sum, zip([x, y], vec))
+# Build orthogonalized surface slab
+# N.B. - If seemingly stuck in loop while using cut, set tolerance parameter to 0.
+# Should not be a problem for most common crystals.
+ao = np.int(num_cells[0])*M_orth[0,:]
+bo = np.int(num_cells[1])*M_orth[1,:]
+co = np.int(num_cells[2])*M_orth[2,:]
+surf_slab_orig = build.cut(surf_crystal, a=ao, b=bo, origo=(0,0,0), nlayers=1, tolerance=0.01)
 
-        coords.append([x, y, z]); types.append(unit_types[1])
-        [x, y] = map(sum, zip([x, y], [-k for k in vec]))
-        x = x + a
+# --------------------------------------------------
+# ----- Align molecule and surface -----------------
+# --------------------------------------------------
+# Place center of surface and molecule at origin
+surf_shift = get_center_of_positions(surf_slab_orig)
+mol_shift = get_center_of_positions(mol_orig)
+mol_orig.translate(surf_shift-mol_shift)
 
-    #move to the next column of unit cells
-    y = y - b*sin(gamma) + vec[1]; x = x0
+# --------------------------------------------------
+# ----- Create all configurations ------------------
+# --------------------------------------------------
+mkdir(xyz_file_dir)
+mkdir(xyz_file_dir_images)
+for j in range(1,N_configs+1):
+    # Reset molecule position / Reset surface file
+    mol = mol_orig.copy()
+    surf_slab = surf_slab_orig.copy()
 
-    #reverse vector to make mirror image for other half of hexagon
-    vec = [-k for k in vec]
+    # Generate random rotation angles / distances
+    # N.B. If trying to create additional orientations, shift the range at the
+    # top of the for loop, otherwise, with random seeding, you will simply
+    # generate the exact same set of configurations.
+    rand_seed = np.random.seed(j)
+    rand_dist = np.random.rand(1)*(zrange[1]-zrange[0])+zrange[0]
+    rand_angles = np.random.rand(3)*360
+    phi = rand_angles[0]
+    theta = rand_angles[1]
+    psi = rand_angles[2]
 
-y_min = min(coords[1])
+    # Rotate / Translate the molecule
+    # Translate after rotating to eliminate clipping of molecule/surface.
+    # Since center of molecule is at origin, minimum z will be negative.
+    mol.euler_rotate(phi=phi, theta=theta, psi=psi, center='COP')
+    pos_after_rot = mol.get_positions()
+    extra_dist = np.min(pos_after_rot[:,2])
+    mol.translate([0,0,rand_dist-extra_dist])
 
-#fix periodicity in y-axis
-for coord in coords:
-    if (coord[1] == y_min):
-        coords.remove(coord)
-
-#create an Atoms object of the surface unit cell
-surface = Atoms(positions=coords, symbols=types)
-
-#find box dimensions
-x_box = max(coords[0]) - min(coords[0]); z_box = box[2]
-y_box = max(coords[1]) - min(coords[1]) + b*sin(gamma) - vec[1]
-
-#write to file to be used by simulation
-box_file = open('box.txt', 'w')
-box_file.write(str(x_box) + '\n' + str(y_box) + '\n' + str(z_box))
-box_file.close()
-
-#line up COMs, "zero" the system
-shift = surface.get_center_of_mass() - mol.get_center_of_mass()
-
-#shift each coordinate (ASE translate functionality is bad, IMO)
-translated = np.empty(mol.positions.shape)
-for i in range(len(mol.positions)):
-    translated[i] = np.add(mol.positions[i], shift)
-mol.set_positions(translated)
-
-#generate configurations
-print('files to be generated:'); num = int(input())
-
-#create directory, save name of directory for individual .xyz files
-mkdir(dir_name)
-
-#copy the bash script, input file, slurm submission file
-for file in ['setslurm_periodic.sh', 'periodic.inp', 'cp2k-per-template.slurm', 'scrape.sh', 'box.txt']:
-    copy(file, dir_name)
-
-#change directories
-chdir(dir_name); print('\n.xyz files in directory: ' + dir_name)
-
-#outfile for writing filename generated (used by bash) & for logging radii
-filenames = open('filenames.txt', 'w'); distances = open('distances.txt', 'w')
-
-#list of random floats for radial distances and angles
-ang_max = 360; r_list = [uniform(1,6) for i in range(num)]
-[ang_phi, ang_psi, ang_theta] = [[uniform(0, ang_max) for i in range(num)] for j in range(3)]
-
-for j in range(1, num+1):
-
-    #get values for this iteration
-    phi = ang_phi[j-1]; psi = ang_psi[j-1]; theta = ang_theta[j-1]; r = r_list[j-1]
-
-    #transform the molecule according to random angles
-    mol.euler_rotate(center='COM', phi=phi, psi=psi, theta=theta)
-
-    #include distance from center of mass to z minimum once rotated
-    r = r + (mol.get_center_of_mass()[2] - mol.positions[:, 2].min())
-
-    #create final xyz file
-    filename3 = dir_name + str(j) + '.xyz'
-
-    #format angles and radial distance for .xyz header
-    for thing in [phi, theta, psi, r]:
-        thing = format(thing, '.3f')
-
-    #write to outputfiles
-    filenames.write(dir_name + str(j) + '\n')
-    distances.write(str(j) + '\t' + str(r) +'\n')
-
-    #save original info for next iteration of loop
-    out_mol = mol.copy(); output = surface.copy()
-
-    #translate molecule in z direction
-    translated = np.empty(mol.positions.shape)
-    shift = np.array([0, 0, r])
-
-    for i in range(len(mol.positions)):
-        translated[i] = np.add(mol.positions[i], shift)
-    out_mol.set_positions(translated)
-
-    #attach molecule to surface, output to xyz file in "sysname_j.xyz"
-    output.extend(out_mol)
-    write(filename=(dir_name + str(j) + '.xyz'), images=output, format='xyz')
-
-#close output files
-for file in [filenames, distances]:
-    file.close()
+    # Join molecule and surface, Write the xyz file
+    filename = (xyz_file_dir+'_'+str(j))
+    output_file = mol.extend(surf_slab)
+    chdir(xyz_file_dir)
+    ase.io.write(filename+'.xyz',output_file)
+    chdir('../'+xyz_file_dir_images)
+    ase.io.write(filename+'.png',output_file, rotation='-90x')
+    chdir('..')

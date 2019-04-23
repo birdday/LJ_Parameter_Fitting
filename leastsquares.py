@@ -1,3 +1,6 @@
+# Written by Brian Day
+# Last updated: 19 April 2019
+
 # --------------------------------------------------
 # ----- Import Python Packages ---------------------
 # --------------------------------------------------
@@ -6,6 +9,7 @@ import matplotlib.pyplot as plt
 
 from pandas import read_csv
 from math import sqrt
+from random import seed, random
 # from ase import Atoms
 
 # # --------------------------------------------------
@@ -98,14 +102,19 @@ beta = rvect**(-6)
 
 E_DFT = np.ones((num_configs))
 E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
+len(E_DFT)
+abs(min(E_DFT))
+noise = np.random.normal(0,abs(min(E_DFT)),len(E_DFT))
+E_DFT_wnoise = E_DFT + noise;
 
 # Plot the Test Data
-plt.plot(rvect[:,0,0],E_DFT[:],'g-o')
+plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o')
 plt.xlabel('Distance [Angstrom]')
 plt.ylabel('Energy [kcal/mol]')
 plt.title('Lennard-Jones Test Data')
 plt.show()
 
+E_DFT = E_DFT_wnoise
 # --------------------------------------------------
 # ----- Parameter Fitting --------------------------
 # --------------------------------------------------
@@ -119,6 +128,10 @@ B = np.zeros((num_params,1))
 # Form of equation: Ax = B --> Solution: x = inv(A)*B
 for n in range(num_configs):
     for m in range(num_surfatoms):
+    # If switching to an array of arrays to take advantage of r_cutoff for speed
+    # purposes, can change to in range (len(specific row/column/etc)).
+    # Should add a preprocessing step for the data to handle this.
+
         for p in range(num_params):
             if mod(p,2) == 0: # A type parameter
                 b = int(p/2)
@@ -193,3 +206,12 @@ for i in range(num_bodies):
     print('epsilon_fit =',epsilon_fit)
 
 print('---------------------\n')
+
+E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
+E_fit = alpha[:,0,0]*AB_fit[0] - beta[:,0,0]*AB_fit[1]
+plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o',rvect[:,0,0],E_fit,'b-o')
+plt.xlabel('Distance [Angstrom]')
+plt.ylabel('Energy [kcal/mol]')
+plt.title('Lennard-Jones Test Data')
+plt.gca().legend(('Test Data','Test Data w/ Noise','Fit to Noisy Data'))
+plt.show()
