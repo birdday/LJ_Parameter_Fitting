@@ -6,7 +6,7 @@
 # ----- Import Python Packages ---------------------
 # --------------------------------------------------
 import ase as ase
-from ase import io, spacegroup, build, visualize
+from ase import Atoms, io, spacegroup, build, visualize
 import numpy as np
 import math as math
 from math import cos, sin, pow

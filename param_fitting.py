@@ -6,25 +6,50 @@
 # --------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
-
-from pandas as pd
+import ase as ase
+from ase import Atoms, io, spacegroup, build, visualize
+import pandas as pd
 from math import sqrt
 from random import seed, random
-from ase import Atoms
 
 # --------------------------------------------------
 # ----- Manual inputs ------------------------------
 # --------------------------------------------------
 # 'Experimental' (DFT) data
-energy_file = ''
+energy_file = 'placeholder.csv'
 dft_energy = pd.read_csv(energy_file)
 
+# Pure molecule / surface file
+mol_file = 'molecules/sotolon.xyz'
+mol_atoms = ase.io.read(mol_file)
+mol_name = mol_file.split('/')[1].split('.')[0]
+surf_file ='surfaces/graphite.cif'
+surf_name = surf_file.split('/')[1].split('.')[0]
+xyz_file_dir = mol_name+'_'+surf_name
+
 # Configuration Files
-config_files_path = ''
+num_configs = 50
+config_files_path = xyz_file_dir
+
+# Define the bodies here
+# Sotolon 2-body, a
+b1 = np.array([1,2,3,6,9,17])-1
+b2 = np.array([4,5,7,8,10,11,12,13,14,15,16])-1
+all_bodies = np.array([b1,b2])
 
 # --------------------------------------------------
 # ----- User-defined Functions ---------------------
 # --------------------------------------------------
+# Create atoms object for a set of coordinates with associated atom types
+def create_ase_atoms(coords, types):
+    atoms_object = Atoms(positions=coords.values, symbols=types.values)
+    return atoms_object
+
+# Calculate the remiander
+def mod(a,b):
+    remainder = a%b
+    return remainder
+
 # Obtain coordinates of molecule / surface within a configuration
 def get_coordinates(mol_file, surf_file, mixed_file):
     mol_atoms_file = ase.io.read(mol_file)
@@ -34,13 +59,31 @@ def get_coordinates(mol_file, surf_file, mixed_file):
     surf_atoms = mixed_atoms_file[range(len(mol_atoms_file),len(mixed_atoms_file))]
     return mol_atoms, surf_atoms
 
+# Calculate the center of positions (non-weighted center of mass)
+def get_center_of_positions(self, scaled=False):
+    num_atoms = len(self)
+    all_xyz = self.get_positions()
+    avg_xyz = np.sum(all_xyz, axis=0)/num_atoms
+    return avg_xyz
+
+# Duplicate surface atoms for calculating atoms within the r_cutoff
+# Only needed for periodic calculations
 def duplicate_surface(surf_atoms):
     # surf_atoms should be an ase atoms object
     return surf_mult
 
+# Create distinct bodies from a set of atoms
 def create_bodies(mol_atoms,body_list):
     # mol_atoms should be an ase objects
     # body list should be an array of arrays listing each atom number in each body
+    body_cop = np.zeros((len(body_list),3))
+    body_com = np.zeros((len(body_list),3))
+    for i in range(len(body_list)):
+        body = Atoms()
+        for j in range(len(body_list[i])):
+            body = body.extend(mol_atoms[body_list[i][j]])
+        body_cop[i,:] = get_center_of_positions(body)
+        body_com[i,:] = body.get_center_of_mass()
     return body_cop, body_com
 
 # Get the distance between two objects
@@ -54,15 +97,11 @@ def get_distance_between_coords(p1, p2):
         dist = sqrt(squared_dist)
     return dist
 
-# Create atoms object for a set of coordinates with associated atom types
-def create_ase_atoms(coords, types):
-    atoms_object = Atoms(positions=coords.values, symbols=types.values)
-    return atoms_object
+# --------------------------------------------------
+# ----- Prepare data / configuration files ---------
+# --------------------------------------------------
 
-# Calculate the remiander
-def mod(a,b):
-    remainder = a%b
-    return remainder
+for i in range(num_configs)
 
 # --------------------------------------------------
 # ----- Test data w/ noise -------------------------
@@ -196,6 +235,9 @@ for i in range(num_bodies):
 
 print('---------------------\n')
 
+# --------------------------------------------------
+# ----- Plot the results ---------------------------
+# --------------------------------------------------
 E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
 E_fit = alpha[:,0,0]*AB_fit[0] - beta[:,0,0]*AB_fit[1]
 plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o',rvect[:,0,0],E_fit,'b-o')
