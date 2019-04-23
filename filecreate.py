@@ -18,7 +18,7 @@ from shutil import copy
 # ----- Manual inputs ------------------------------
 # --------------------------------------------------
 # Read in molecule xyz file and surface cif file
-mol_file = 'molecules/sotolon.xyz'
+mol_file = 'molecules/p_sarin.mol'
 mol_orig = ase.io.read(mol_file)
 mol_name = mol_file.split('/')[1].split('.')[0]
 
@@ -89,7 +89,7 @@ for i in range(len(num_cells)):
 ao = np.int(num_cells[0])*M_orth[0,:]
 bo = np.int(num_cells[1])*M_orth[1,:]
 co = np.int(num_cells[2])*M_orth[2,:]
-surf_slab_orig = build.cut(surf_crystal, a=ao, b=bo, origo=(0,0,0), nlayers=1, tolerance=0.01)
+surf_slab_orig = ase.build.cut(surf_crystal, a=ao, b=bo, origo=(0,0,0), nlayers=1, tolerance=0.01)
 
 # --------------------------------------------------
 # ----- Align molecule and surface -----------------

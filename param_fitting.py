@@ -7,72 +7,57 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pandas import read_csv
+from pandas as pd
 from math import sqrt
 from random import seed, random
-# from ase import Atoms
+from ase import Atoms
 
-# # --------------------------------------------------
-# # ----- User-defined Functions ---------------------
-# # --------------------------------------------------
-# # Get the distance between two objects
-# def distance_between_coords(p1, p2):
-#     dist = sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
-#     return dist
-#
-# # Get the coordinates for the moleucle and surface
-# def get_coordinates(dir_lists, v, b, f):
-#     # Create DataFrame of coordinates for each configuration
-#     for j, dir in enumerate(tqdm(dir_list, leave=False)):
-#         df = read_csv(dir + '.xyz', header=2, names=['type', 'x', 'y', 'z'], sep='\s+')
-#         all_xyz = df[['x', 'y', 'z']]
-#         all_types = df['type']
-#         surf_z = coords['z'].iloc[0]; n = len(coords['z'])
-#
-#     # Separate molecule and surface by checking z coordinate
-#     for i in range(n):
-#         if df['z'].iloc[i] != surf_z:
-#             molecule_xyz = coords.iloc[i:,:]
-#             molecule_types = types.iloc[i:]
-#             surface_xyz = coords.iloc[:i,:]
-#             surface_types = types.iloc[:i]
-#
-#     return all_xyz, all_types, molecule_xyz, molecule_types, surface_xyz, surface_types
-#
-# def create_ase_atoms(mol_coords, mol_types, surf_coords, surf_types):
-#     mol_atoms = Atoms(positions=mol_coords.values, symbols=mol_types.values)
-#     surf_atoms = Atoms(positions=surf_coords.values, symbols=surf_types.values)
-#     return mol_atoms, surf_atoms
-#
-# # Calculate the 'internal' energy of the surface
-# def get_surface_energy(f, surf_list):
-#     E_surf = 0
-#     for i, p1 in enumerate(surf_list):
-#         for j, p2 in enumerate(surf_list[(i+1):]):
-#             dist = distance_between_coords(p1, p2)
-#             if dist > cutoff:
-#                 continue;
-#             e = f.subs([(r, dist), (sig, surface_sig), (eps, surface_eps)])
-#             E_surf = E_surf + e
-#     return E_surf
-#
-# # Calculate the 'internal' energy of the molecule
-# def get_molecule_energy(f, mol_list, surf_list):
-#     E_mol = 1;
-#     return E_mol
+# --------------------------------------------------
+# ----- Manual inputs ------------------------------
+# --------------------------------------------------
+# 'Experimental' (DFT) data
+energy_file = ''
+dft_energy = pd.read_csv(energy_file)
 
-# Calculate the energy between the molecule bodies and surface atoms
-f = 1; cutoff = 6;
-def get__mixed_energy(f, mol_list, surf_list):
-    E_mixed = 0
-    for i, p1 in enumerate(mol_list):
-        for j, p2 in enumerate(surf_list):
-            dist = distance_between_coords(p1, p2)
-            if dist > cutoff:
-                continue;
-            e = f.subs(r, dist)
-            E_mixed = E_mixed + e
-    return E_mixed
+# Configuration Files
+config_files_path = ''
+
+# --------------------------------------------------
+# ----- User-defined Functions ---------------------
+# --------------------------------------------------
+# Obtain coordinates of molecule / surface within a configuration
+def get_coordinates(mol_file, surf_file, mixed_file):
+    mol_atoms_file = ase.io.read(mol_file)
+    surf_atoms_file = ase.io.read(surf_file)
+    mixed_atoms_file = ase.io.read(mixed_file)
+    mol_atoms = mixed_atoms_file[range(len(mol_atoms_file))]
+    surf_atoms = mixed_atoms_file[range(len(mol_atoms_file),len(mixed_atoms_file))]
+    return mol_atoms, surf_atoms
+
+def duplicate_surface(surf_atoms):
+    # surf_atoms should be an ase atoms object
+    return surf_mult
+
+def create_bodies(mol_atoms,body_list):
+    # mol_atoms should be an ase objects
+    # body list should be an array of arrays listing each atom number in each body
+    return body_cop, body_com
+
+# Get the distance between two objects
+def get_distance_between_coords(p1, p2):
+    squared_dist = 0
+    if len(p1) != len(p2):
+        print('Invalid input: Postion vectors of different dimesnions')
+    else:
+        for i in range(len(p1)):
+            squared_dist += (p1[i] - p2[i])**2
+        dist = sqrt(squared_dist)
+    return dist
+
+# Create atoms object for a set of coordinates with associated atom types
+def create_ase_atoms(coords, types):
+    atoms_object = Atoms(positions=coords.values, symbols=types.values)
+    return atoms_object
 
 # Calculate the remiander
 def mod(a,b):
@@ -80,54 +65,58 @@ def mod(a,b):
     return remainder
 
 # --------------------------------------------------
-# ----- 'Experimental' (DFT) Data ------------------
+# ----- Test data w/ noise -------------------------
 # --------------------------------------------------
-# Test Data (i.e. Perfect Fit) - 1 Body
-num_configs = 101
-num_surfatoms = 1
-num_bodies = 1
-num_params = 2*num_bodies
+# # Test Data (i.e. Perfect Fit) - 1 Body
+# num_configs = 101
+# num_surf_atoms = 1
+# num_bodies = 1
+# num_params = 2*num_bodies
+#
+# sigma = 3.5
+# epsilon = 0.066
+# A_LJ = 4 * epsilon * (sigma**12)
+# B_LJ = 4 * epsilon * (sigma**6)
+# AB_LJ = np.array([A_LJ,B_LJ]).reshape(2,1)
+#
+# rlim = ([3,8])
+# rvect = np.ones((num_configs, num_surf_atoms, num_bodies))
+# rvect[:,0,0] = np.linspace(rlim[0], rlim[1], num=num_configs, endpoint=True)
+# alpha = rvect**(-12)
+# beta = rvect**(-6)
+#
+# E_DFT = np.ones((num_configs))
+# E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
+# len(E_DFT)
+# abs(min(E_DFT))
+# noise = np.random.normal(0,abs(min(E_DFT)),len(E_DFT))
+# E_DFT_wnoise = E_DFT + noise;
+#
+# # Plot the Test Data
+# plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o')
+# plt.xlabel('Distance [Angstrom]')
+# plt.ylabel('Energy [kcal/mol]')
+# plt.title('Lennard-Jones Test Data')
+# plt.show()
+#
+# E_DFT = E_DFT_wnoise
 
-sigma = 3.5
-epsilon = 0.066
-A_LJ = 4 * epsilon * (sigma**12)
-B_LJ = 4 * epsilon * (sigma**6)
-AB_LJ = np.array([A_LJ,B_LJ]).reshape(2,1)
-
-rlim = ([3,8])
-rvect = np.ones((num_configs, num_surfatoms, num_bodies))
-rvect[:,0,0] = np.linspace(rlim[0], rlim[1], num=num_configs, endpoint=True)
-alpha = rvect**(-12)
-beta = rvect**(-6)
-
-E_DFT = np.ones((num_configs))
-E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
-len(E_DFT)
-abs(min(E_DFT))
-noise = np.random.normal(0,abs(min(E_DFT)),len(E_DFT))
-E_DFT_wnoise = E_DFT + noise;
-
-# Plot the Test Data
-plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o')
-plt.xlabel('Distance [Angstrom]')
-plt.ylabel('Energy [kcal/mol]')
-plt.title('Lennard-Jones Test Data')
-plt.show()
-
-E_DFT = E_DFT_wnoise
 # --------------------------------------------------
 # ----- Parameter Fitting --------------------------
 # --------------------------------------------------
-# Currently (14 April 2019, Brian Day) attempting to set up a system of linear
-# equations which can be solved thorugh Gaussian elimination. The minimuzation
-# function is the Sum of Squared Errors (SSE).
+# num_configs is a fixed value determined prior to any fitting.
+# num_params is a fixed value based on the number of bodies.
+# num_surf_atoms changes depending on the configuration, and hence so do alpha
+# and beta. Add a filtering step which determines the number of surface atoms
+# within the cutoff, as well as their position and/or distance between each body.
+# Store the surf atoms critical to each config/body as an array of arrays.
 A = np.zeros((num_params,num_params))
 B = np.zeros((num_params,1))
 
 # Calculate the A and B Matricies for the system of equations to be solved.
 # Form of equation: Ax = B --> Solution: x = inv(A)*B
 for n in range(num_configs):
-    for m in range(num_surfatoms):
+    for m in range(num_surf_atoms[n,b]):
     # If switching to an array of arrays to take advantage of r_cutoff for speed
     # purposes, can change to in range (len(specific row/column/etc)).
     # Should add a preprocessing step for the data to handle this.
