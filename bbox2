@@ -1,0 +1,45 @@
+#! /usr/bin/env python
+
+from ase.io import read
+import sys
+import os
+import math
+import numpy
+
+"""
+    Orignal Script by: Michael Cowan, University of Pittsburgh, CANELa
+    Modifications by: Brian Day, University of Pittsburgh, Wilmer Lab
+
+    Script used to obtain dimensions of xyz file
+    USAGE:
+
+         - "bbox <<xyz filepath>>"
+    ARGS:    
+        - buffer_size provides the recommended unitcell
+          dimensions to have <<buffer_size>> padding all
+          around your system
+        - if a second arg is passed, script only returns
+          reccommended BBox size
+          e.g. "bbox <<xyz filepath>> TRUE"
+               RETURNS: <<box>>
+""" 
+
+if len(sys.argv) > 1:
+    path = sys.argv[1]
+    if not os.path.isfile(path):
+        print('Incorrect path')
+    else:
+      # --- SET DESIRED BUFFER SIZE HERE! ---
+        buffer_size = 7
+      # --- Get Atom Positions ---
+        mol = read(path).positions
+      # --- Get System Size, Max Distance of System (X, Y, Z) ---
+        dists = mol.max(0) - mol.min(0)
+        # print('\nX range: %.2f Ang\nY range: %.2f Ang\nZ range: %.2f Ang' % tuple(dists))
+        # print('\nMax Pos: (%.2f %.2f %.2f)' % tuple(mol.max(0)))
+        # print('Min Pos: (%.2f %.2f %.2f)' % tuple(mol.min(0)))
+        # print('\nCenter of Molecule: (%.2f %.2f %.2f)' % tuple(mol.mean(0)))
+      # --- Calculate Box Size for a Non-cubic Unit Cell ---
+        box = dists + (2 * buffer_size)
+        box = numpy.ceil(box*100)/100
+        print('%.2f %.2f %.2f' % tuple(box))
