@@ -41,15 +41,19 @@ rvect[:,0,0] = np.linspace(rlim[0], rlim[1], num=num_configs, endpoint=True)
 alpha = rvect**(-12)
 beta = rvect**(-6)
 
-E_DFT = np.ones((num_configs))
-E_DFT = alpha[:,0,0]*A_LJ - beta[:,0,0]*B_LJ
-len(E_DFT)
-abs(min(E_DFT))
-noise = np.random.normal(0,abs(min(E_DFT)),len(E_DFT))
-E_DFT_wnoise = E_DFT + noise;
+E_DFT = np.zeros((num_configs,num_bodies))
+E_DFT_wnoise = np.zeros((num_configs,num_bodies))
+for i in range(num_configs):
+    for j in range(num_bodies):
+            E_DFT[i][j] = alpha[i,j,k]*A_LJ - beta[i,j,k]*B_LJ
+
+noise = np.random.normal(0,float(abs(min(E_DFT))),len(E_DFT))
+
+for i in range(len(E_DFT)):
+    E_DFT_wnoise[i] = E_DFT[i] + noise[i]
 
 # Plot the Test Data
-plt.plot(rvect[:,0,0],E_DFT[:],'g-o',rvect[:,0,0],E_DFT_wnoise[:],'r-o')
+plt.plot(rvect[:,0],E_DFT,'go',rvect[:,0],E_DFT_wnoise,'rx')
 plt.xlabel('Distance [Angstrom]')
 plt.ylabel('Energy [kcal/mol]')
 plt.title('Lennard-Jones Test Data')

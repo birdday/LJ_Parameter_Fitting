@@ -18,11 +18,11 @@ from shutil import copy
 # ----- Manual inputs ------------------------------
 # --------------------------------------------------
 # Read in molecule xyz file and surface cif file
-mol_file = 'molecules/p_sarin.mol'
+mol_file = '_molecules/argon.xyz'
 mol_orig = ase.io.read(mol_file)
 mol_name = mol_file.split('/')[1].split('.')[0]
 
-surf_file ='surfaces/graphite.cif'
+surf_file ='_surfaces/graphite.cif'
 surf_cell = ase.io.read(surf_file)
 surf_name = surf_file.split('/')[1].split('.')[0]
 xyz_file_dir = mol_name+'_'+surf_name
@@ -30,7 +30,8 @@ xyz_file_dir_images = mol_name+'_'+surf_name+'_images'
 
 surf_cell_spacegroup = 'P 1'
 buffer = 8
-N_configs = 50
+start_num = 1
+N_configs = 30
 zrange = [1,8]
 
 # --------------------------------------------------
@@ -67,8 +68,9 @@ surf_cell_atomtypes, surf_cell_frac_coords,
 spacegroup=surf_cell_spacegroup, cellpar=surf_cell_params)
 
 # Define an orthoganalization matrix - Is this general for use with cut?
-cy = (cos(alpha)-cos(gamma)*cos(beta))/sin(gamma)
-M_orth = np.array([[1,0,0],[-cos(gamma),1,0],[cos(beta),cy,1]])
+# cy = (cos(alpha)-cos(gamma)*cos(beta))/sin(gamma)
+# M_orth = np.array([[1,0,0],[-cos(gamma),1,0],[cos(beta),cy,1]])
+M_orth = np.array([[1,0,0],[0,1,0],[0,0,1]])
 
 # Calculate box distance for a given molecule size / buffer
 # Currently a rough approximate of the size of the molecule, fix later
@@ -89,7 +91,12 @@ for i in range(len(num_cells)):
 ao = np.int(num_cells[0])*M_orth[0,:]
 bo = np.int(num_cells[1])*M_orth[1,:]
 co = np.int(num_cells[2])*M_orth[2,:]
+ao, bo, co
 surf_slab_orig = ase.build.cut(surf_crystal, a=ao, b=bo, origo=(0,0,0), nlayers=1, tolerance=0.01)
+filename = (surf_name+'_slab')
+filename
+ase.io.write(filename+'.xyz',surf_slab_orig)
+ase.visualize.view(surf_slab_orig)
 
 # --------------------------------------------------
 # ----- Align molecule and surface -----------------
@@ -104,7 +111,7 @@ mol_orig.translate(surf_shift-mol_shift)
 # --------------------------------------------------
 mkdir(xyz_file_dir)
 mkdir(xyz_file_dir_images)
-for j in range(1,N_configs+1):
+for j in range(start_num,N_configs+start_num+1):
     # Reset molecule position / Reset surface file
     mol = mol_orig.copy()
     surf_slab = surf_slab_orig.copy()

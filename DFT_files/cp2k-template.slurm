@@ -1,26 +1,21 @@
 #!/bin/env bash
-#SBATCH --job-name=FIRST_PROJNAME-energy
-#SBATCH --output=FIRST_PROJNAME-energy.out
+#SBATCH --job-name=SLURM_SYSNAME-energy
+#SBATCH --output=SLURM_SYSNAME-energy.out
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=18
 #SBATCH --cluster=mpi
-#SBATCH --time=0-04:00:00
+#SBATCH --time=0-02:00:00
 
 ## ======================================================
 ## ===== Only make changes here!!!!  ====================
 ## ======================================================
-   ! Can also change job and output names above
-runtype=ENERGY
-sysname=FIRST_PROJNAME
-xyzfile=EXTERNAL_XYZFILE
-template=EXTERNAL_INPUTFILE
-
+sys_name="SLURM_SYSNAME"
+xyz_file="EXTERNAL_XYZFILE"
+template="EXTERNAL_INPUTFILE"
 project_file="${sysname}-energy"
+run_type="ENERGY"
 print_level="MEDIUM"
-   ! rename project file as needed
-   ! use print_level "LOW" for geoopt and print_level "MEDIUM" or energy
-charge="0"
-lsd="FALSE"
+box_size="EXTERNAL_BOX_SIZE"
 
 ## ======================================================
 ## ===== Prepare the Cores ==============================
@@ -33,7 +28,7 @@ ulimit -l unlimited
 ## ======================================================
 ## ===== Copy all necessary files to all nodes ==========
 ## ======================================================
-files=(${template} ${xyzfile})
+files=(${template} ${xyz_file} elements-PBE.inc)
 for i in ${files[@]}; do
     sbcast $SLURM_SUBMIT_DIR/$i $SLURM_SCRATCH/$i
 done
@@ -56,12 +51,11 @@ export I_MPI_FABRICS_LIST=ofa,tmi
 export I_MPI_FALLBACK=0
 
 ## Fill in template
-sed -e "s|EXTERNAL_XYZ_FILE|${xyzfile}|g" \
-    -e "s/EXTERNAL_PROJNAME/${project_file}/g" \
-    -e "s/EXTERNAL_RUN_TYPE/${runtype}/g" \
+sed -e "s|EXTERNAL_PROJNAME|${project_file}|g" \
+    -e "s/EXTERNAL_RUN_TYPE/${run_type}/g" \
     -e "s/EXTERNAL_PRINT_LEVEL/${print_level}/g" \
-    -e "s/EXTERNAL_CHARGE/${charge}/g" \
-    -e "s/EXTERNAL_LSD/${lsd}/g" \
+    -e "s/EXTERNAL_BOX_SIZE/${box_size}/g"
+    -e "s/EXTERNAL_XYZ_FILE/${xyz_file}/g" \
     ${template} > "${project_file}-run.inp"
 
 ## Run calculation
